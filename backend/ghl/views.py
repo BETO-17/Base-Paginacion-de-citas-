@@ -1,42 +1,74 @@
+from django.conf import settings
+from django.views import View
+from django.http import JsonResponse
 import requests
 import json
-from django.http import JsonResponse
-from django.views import View
 
-# 🔑 Token privado de GHL (puedes moverlo a settings.py como variable)
-GHL_API_KEY = "pit-3ff13585-dab4-4acf-b61a-aacfcd8c29fb"
-GHL_BASE_URL = "https://rest.gohighlevel.com/v1"
-API_VERSION = "2021-07-28"
-
+# 🔹 Configuración desde settings.py
+GHL_API_KEY = settings.GHL_API_KEY
+LOCATION_ID = settings.GHL_LOCATION_ID
+GHL_BASE_URL = "https://services.leadconnectorhq.com"
 
 class CalendarListView(View):
     def get(self, request):
         url = f"{GHL_BASE_URL}/calendars/"
         headers = {
             "Authorization": f"Bearer {GHL_API_KEY}",
-            "Version": API_VERSION,
+            "Accept": "application/json",
+            "Version": "2021-04-15",
         }
-        response = requests.get(url, headers=headers)
-        return JsonResponse(response.json())
+        params = {"locationId": LOCATION_ID}
+
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            data = response.json()
+        except requests.exceptions.HTTPError as e:
+            return JsonResponse({
+                "error": "HTTPError",
+                "status_code": response.status_code,
+                "content": response.text
+            }, status=response.status_code)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+        return JsonResponse(data, safe=False)
 
 
 class AppointmentCreateView(View):
     def post(self, request):
-        data = json.loads(request.body)
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "JSON inválido"}, status=400)
 
-        url = f"{GHL_BASE_URL}/appointments/"
+        url = f"{GHL_BASE_URL}/appointments"
         headers = {
             "Authorization": f"Bearer {GHL_API_KEY}",
-            "Version": API_VERSION,
+            "Accept": "application/json",
             "Content-Type": "application/json",
+            "Version": "2021-04-15",
         }
 
         payload = {
             "calendarId": data.get("calendarId"),
             "contactId": data.get("contactId"),
-            "startTime": data.get("startTime"),  # formato ISO8601
+            "startTime": data.get("startTime"),
             "endTime": data.get("endTime"),
+            "locationId": LOCATION_ID
         }
 
-        response = requests.post(url, headers=headers, json=payload)
-        return JsonResponse(response.json())
+        try:
+            response = requests.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            result = response.json()
+        except requests.exceptions.HTTPError as e:
+            return JsonResponse({
+                "error": "HTTPError",
+                "status_code": response.status_code,
+                "content": response.text
+            }, status=response.status_code)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+        return JsonResponse(result)
