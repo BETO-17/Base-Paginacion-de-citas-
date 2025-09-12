@@ -1,26 +1,10 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
-import CalendarTable from './components/CalendarTable'
+import AppointmentForm from "./AppointmentForm"
 
-function App() {
-  const [count, setCount] = useState(0)
-
+export default function App() {
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Calendarios GHL</h1>
-      <CalendarTable />
-    </>
+    <div className="app">
+      <h1 className="main-title">Gestión de Citas</h1>
+      <AppointmentForm />
+    </div>
   )
 }
-
-export default App
