@@ -1,13 +1,19 @@
 from django.conf import settings
 from django.views import View
 from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt # se aumento#############
+from django.utils.decorators import method_decorator # se aumento#####33
 import requests
 import json
+import logging
+
 
 # 🔹 Configuración desde settings.py
 GHL_API_KEY = settings.GHL_API_KEY
 LOCATION_ID = settings.GHL_LOCATION_ID
 GHL_BASE_URL = "https://services.leadconnectorhq.com"
+
+logger = logging.getLogger(__name__)
 
 class CalendarListView(View):
     def get(self, request):
@@ -20,21 +26,19 @@ class CalendarListView(View):
         params = {"locationId": LOCATION_ID}
 
         try:
-            response = requests.get(url, headers=headers, params=params)
+            response = requests.get(url, headers=headers, params=params, timeout=30)
             response.raise_for_status()
             data = response.json()
-        except requests.exceptions.HTTPError as e:
+            return JsonResponse(data, safe=False)
+            
+        except requests.exceptions.RequestException as e:
+            logger.error("Error al obtener calendarios: %s", str(e))
             return JsonResponse({
-                "error": "HTTPError",
-                "status_code": response.status_code,
-                "content": response.text
-            }, status=response.status_code)
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
+                "error": "Error de conexión",
+                "details": str(e)
+            }, status=500)
 
-        return JsonResponse(data, safe=False)
-
-
+@method_decorator(csrf_exempt, name='dispatch')
 class AppointmentCreateView(View):
     def post(self, request):
         try:
@@ -42,7 +46,24 @@ class AppointmentCreateView(View):
         except json.JSONDecodeError:
             return JsonResponse({"error": "JSON inválido"}, status=400)
 
-        url = f"{GHL_BASE_URL}/appointments"
+        # Validar campos requeridos
+        required_fields = ['calendarId', 'contactId', 'startTime', 'endTime']
+        for field in required_fields:
+            if not data.get(field):
+                return JsonResponse({"error": f"Campo requerido: {field}"}, status=400)
+
+            payload = {
+                "calendarId": data["calendarId"],
+                "contactId": data["contactId"],
+                "locationId": data.get('locationId', LOCATION_ID),
+                "startTime": data["startTime"],
+                "endTime": data["endTime"],
+                "assignedUserId": data["assignedUserId"],   # 🔹 agregado
+                "ignoreFreeSlotValidation": True,
+                "toNotify": data.get("toNotify", []),
+            }
+
+        url = f"{GHL_BASE_URL}/calendars/events/appointments"
         headers = {
             "Authorization": f"Bearer {GHL_API_KEY}",
             "Accept": "application/json",
@@ -50,25 +71,22 @@ class AppointmentCreateView(View):
             "Version": "2021-04-15",
         }
 
-        payload = {
-            "calendarId": data.get("calendarId"),
-            "contactId": data.get("contactId"),
-            "startTime": data.get("startTime"),
-            "endTime": data.get("endTime"),
-            "locationId": LOCATION_ID
-        }
-
         try:
-            response = requests.post(url, headers=headers, json=payload)
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
             response.raise_for_status()
-            result = response.json()
+            return JsonResponse(response.json())
+            
         except requests.exceptions.HTTPError as e:
+            logger.error("Error HTTP al crear cita: %s", response.text)
             return JsonResponse({
-                "error": "HTTPError",
+                "error": "Error en API externa",
                 "status_code": response.status_code,
-                "content": response.text
+                "details": response.text
             }, status=response.status_code)
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-
-        return JsonResponse(result)
+            
+        except requests.exceptions.RequestException as e:
+            logger.error("Error de conexión al crear cita: %s", str(e))
+            return JsonResponse({
+                "error": "Error de conexión",
+                "details": str(e)
+            }, status=500)

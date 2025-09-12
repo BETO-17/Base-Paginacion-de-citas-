@@ -70,4 +70,6 @@ CORS_ALLOW_ALL_ORIGINS = True
 # 🔹 GoHighLevel
 GHL_API_KEY = os.getenv("GHL_API_KEY")
 GHL_LOCATION_ID = os.getenv("GHL_LOCATION_ID")
-GHL_BASE_URL = "https://api.gohighlevel.com/v2"
+GHL_BASE_URL = "https://services.leadconnectorhq.com"
+GHL_PRIVATE_TOKEN = os.getenv("GHL_PRIVATE_TOKEN")
+CSRF_TRUSTED_ORIGINS = ['http://localhost:8000'] # se aumento
