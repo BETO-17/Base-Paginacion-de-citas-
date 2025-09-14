@@ -90,3 +90,56 @@ class AppointmentCreateView(View):
                 "error": "Error de conexión",
                 "details": str(e)
             }, status=500)
+class AppointmentListView(View):
+    def get(self, request):
+        url = f"{GHL_BASE_URL}/calendars/events/appointments"
+        headers = {
+            "Authorization": f"Bearer {GHL_API_KEY}",
+            "Accept": "application/json",
+            "Version": "2021-04-15",
+        }
+        params = {
+            "locationId": LOCATION_ID,
+            "limit": 1000  # puedes poner el número que necesites
+        }
+
+        try:
+            response = requests.get(url, headers=headers, params=params, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            return JsonResponse(data, safe=False)
+
+        except requests.exceptions.RequestException as e:
+            logger.error("Error al obtener citas: %s", str(e))
+            return JsonResponse({
+                "error": "Error de conexión",
+                "details": str(e)
+            }, status=500)
+class AppointmentListView(View):
+    def get(self, request):
+        calendar_id = request.GET.get("calendarId")
+        if not calendar_id:
+            return JsonResponse({"error": "Debes proporcionar calendarId como parámetro (?calendarId=XXX)"}, status=400)
+
+        url = f"{GHL_BASE_URL}/calendars/events/appointments"
+        headers = {
+            "Authorization": f"Bearer {GHL_API_KEY}",
+            "Accept": "application/json",
+            "Version": "2021-04-15",
+        }
+        params = {
+            "calendarId": calendar_id,
+            "limit": 1000
+        }
+
+        try:
+            response = requests.get(url, headers=headers, params=params, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            return JsonResponse(data, safe=False)
+        except requests.exceptions.RequestException as e:
+            logger.error("Error al obtener citas: %s", str(e))
+            return JsonResponse({
+                "error": "Error de conexión",
+                "details": str(e)
+            }, status=500)
