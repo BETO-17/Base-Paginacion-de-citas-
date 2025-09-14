@@ -146,7 +146,11 @@ export default function AppointmentForm() {
         </button>
       </form>
 
-      {message && <p>{message}</p>}
+      {message && (
+        <div className={`message ${message.includes('✅') ? 'success' : 'error'}`}>
+          {message}
+        </div>
+      )}
 
       {savedData && (
         <pre className="response-box">
