@@ -458,6 +458,52 @@ body {
   color: #6b7280;
 }
 
+/* Estilos para controles de paginación */
+.pagination-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.pagination-btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: white;
+  color: #374151;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 100px;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  border-color: #3b82f6;
+  color: #3b82f6;
+  background: #f8fafc;
+}
+
+.pagination-btn:disabled {
+  background: #f3f4f6;
+  color: #9ca3af;
+  cursor: not-allowed;
+  border-color: #e5e7eb;
+}
+
+.pagination-info {
+  font-size: 0.9rem;
+  color: #6b7280;
+  font-weight: 500;
+  min-width: 120px;
+  text-align: center;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .nav-buttons {
@@ -468,6 +514,16 @@ body {
   .nav-button {
     flex: 1;
     min-width: 120px;
+  }
+  
+  .pagination-controls {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .pagination-btn {
+    width: 100%;
+    max-width: 200px;
   }
 }
 
@@ -489,5 +545,13 @@ body {
   .apt-table th,
   .apt-table td {
     padding: 0.5rem 0.25rem;
+  }
+  
+  .pagination-controls {
+    padding: 0.75rem;
+  }
+  
+  .pagination-info {
+    font-size: 0.8rem;
   }
 }
