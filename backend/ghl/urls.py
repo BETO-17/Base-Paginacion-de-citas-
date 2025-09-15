@@ -17,5 +17,4 @@ urlpatterns = [
     path('api/appointments/', appointment_list, name='appointment_list'),
     path('api/ghl-appointments/', AllGHLAppointmentsView.as_view(), name='all_ghl_appointments')
 
-
 ]
