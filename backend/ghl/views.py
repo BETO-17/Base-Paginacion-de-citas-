@@ -6,6 +6,8 @@ from django.utils.decorators import method_decorator # se aumento#####33
 import requests
 import json
 import logging
+from .models import Appointment
+
 
 
 # 🔹 Configuración desde settings.py
@@ -37,7 +39,6 @@ class CalendarListView(View):
                 "error": "Error de conexión",
                 "details": str(e)
             }, status=500)
-
 @method_decorator(csrf_exempt, name='dispatch')
 class AppointmentCreateView(View):
     def post(self, request):
@@ -52,94 +53,124 @@ class AppointmentCreateView(View):
             if not data.get(field):
                 return JsonResponse({"error": f"Campo requerido: {field}"}, status=400)
 
-            payload = {
-                "calendarId": data["calendarId"],
-                "contactId": data["contactId"],
-                "locationId": data.get('locationId', LOCATION_ID),
-                "startTime": data["startTime"],
-                "endTime": data["endTime"],
-                "assignedUserId": data["assignedUserId"],   # 🔹 agregado
-                "ignoreFreeSlotValidation": True,
-                "toNotify": data.get("toNotify", []),
-            }
+        payload = {
+            "calendarId": data["calendarId"],
+            "contactId": data["contactId"],
+            "locationId": data.get('locationId', LOCATION_ID),
+            "startTime": data["startTime"],
+            "endTime": data["endTime"],
+            "assignedUserId": data.get("assignedUserId"),
+            "ignoreFreeSlotValidation": True,
+            "toNotify": data.get("toNotify", []),
+        }
 
         url = f"{GHL_BASE_URL}/calendars/events/appointments"
         headers = {
             "Authorization": f"Bearer {GHL_API_KEY}",
             "Accept": "application/json",
             "Content-Type": "application/json",
-            "Version": "2021-04-15",
+            "Version": "2021-07-28",
         }
 
         try:
+            # Enviar a GHL
             response = requests.post(url, headers=headers, json=payload, timeout=30)
             response.raise_for_status()
-            return JsonResponse(response.json())
-            
-        except requests.exceptions.HTTPError as e:
-            logger.error("Error HTTP al crear cita: %s", response.text)
+            ghl_data = response.json()
+
+            # Guardar en SQLite
+            appointment = Appointment.objects.create(
+                ghl_id = ghl_data.get("id"),
+                calendar_id = data["calendarId"],
+                contact_id = data["contactId"],
+                title = data.get("title"),
+                start_time = data["startTime"],
+                end_time = data["endTime"]
+            )
+
             return JsonResponse({
-                "error": "Error en API externa",
-                "status_code": response.status_code,
-                "details": response.text
-            }, status=response.status_code)
-            
+                "message": "Cita creada correctamente",
+                "ghl_response": ghl_data,
+                "local_id": appointment.id
+            }, status=201)
+
         except requests.exceptions.RequestException as e:
-            logger.error("Error de conexión al crear cita: %s", str(e))
-            return JsonResponse({
-                "error": "Error de conexión",
-                "details": str(e)
-            }, status=500)
-class AppointmentListView(View):
-    def get(self, request):
-        url = f"{GHL_BASE_URL}/calendars/events/appointments"
+            logger.error("Error al crear cita en GHL: %s", str(e))
+            return JsonResponse({"error": "No se pudo crear cita", "details": str(e)}, status=500)
+
+
+            
+@method_decorator(csrf_exempt, name='dispatch')
+            
+class AppointmentDetailView(View):
+    def get(self, request, event_id):
+        url = f"{GHL_BASE_URL}/calendars/events/appointments/{event_id}"
         headers = {
             "Authorization": f"Bearer {GHL_API_KEY}",
             "Accept": "application/json",
             "Version": "2021-04-15",
         }
-        params = {
-            "locationId": LOCATION_ID,
-            "limit": 1000  # puedes poner el número que necesites
-        }
 
         try:
-            response = requests.get(url, headers=headers, params=params, timeout=30)
+            response = requests.get(url, headers=headers, timeout=30)
             response.raise_for_status()
             data = response.json()
             return JsonResponse(data, safe=False)
-
         except requests.exceptions.RequestException as e:
-            logger.error("Error al obtener citas: %s", str(e))
+            logger.error("Error al obtener cita: %s", str(e))
             return JsonResponse({
                 "error": "Error de conexión",
                 "details": str(e)
             }, status=500)
-class AppointmentListView(View):
+ 
+@method_decorator(csrf_exempt, name='dispatch')
+class BatchAppointmentsView(View):
     def get(self, request):
-        calendar_id = request.GET.get("calendarId")
-        if not calendar_id:
-            return JsonResponse({"error": "Debes proporcionar calendarId como parámetro (?calendarId=XXX)"}, status=400)
+        appointments = Appointment.objects.all().order_by('-created_at')
+        data = [
+            {
+                "id": a.id,
+                "ghl_id": a.ghl_id,
+                "calendar_id": a.calendar_id,
+                "contact_id": a.contact_id,
+                "title": a.title,
+                "start_time": a.start_time,
+                "end_time": a.end_time,
+                "created_at": a.created_at,
+            }
+            for a in appointments
+        ]
+        return JsonResponse(data, safe=False)
 
-        url = f"{GHL_BASE_URL}/calendars/events/appointments"
+def appointment_list(request):
+    appointments = Appointment.objects.all().values(
+        'ghl_id', 'calendar_id', 'contact_id', 'title', 'start_time', 'end_time', 'created_at'
+    )
+    # Convertir QuerySet a lista
+    data = list(appointments)
+    return JsonResponse(data, safe=False)
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AllGHLAppointmentsView(View):
+    def get(self, request):
+        # Traer todos los ghl_id de tu DB local
+        appointments = Appointment.objects.all()
         headers = {
             "Authorization": f"Bearer {GHL_API_KEY}",
             "Accept": "application/json",
             "Version": "2021-04-15",
         }
-        params = {
-            "calendarId": calendar_id,
-            "limit": 1000
-        }
 
-        try:
-            response = requests.get(url, headers=headers, params=params, timeout=30)
-            response.raise_for_status()
-            data = response.json()
-            return JsonResponse(data, safe=False)
-        except requests.exceptions.RequestException as e:
-            logger.error("Error al obtener citas: %s", str(e))
-            return JsonResponse({
-                "error": "Error de conexión",
-                "details": str(e)
-            }, status=500)
+        all_data = []
+
+        for a in appointments:
+            url = f"{GHL_BASE_URL}/calendars/events/appointments/{a.ghl_id}"
+            try:
+                resp = requests.get(url, headers=headers, timeout=30)
+                resp.raise_for_status()
+                all_data.append(resp.json())
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Error al obtener cita {a.ghl_id}: {str(e)}")
+                all_data.append({"ghl_id": a.ghl_id, "error": str(e)})
+
+        return JsonResponse(all_data, safe=False)
